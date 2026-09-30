@@ -276,6 +276,15 @@
         .sequence-text-anim { animation: slideUpFade 1.2s ease-in-out forwards; }
         #sequenceText { font-family: var(--font-fable); font-style: italic; font-weight: 600 !important; letter-spacing: -0.01em !important; color: #fff3dc !important; text-shadow: 0 0 24px rgba(255, 170, 60, .7); -webkit-text-stroke: 0 !important; }
 
+        /* 퇴근 시각 계산기 */
+        .calc { background: var(--tile); padding: 20px 24px 22px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 32px; }
+        .calc-in { display: flex; align-items: center; gap: 8px; }
+        .calc-in .apple-input { width: 72px; height: 44px; padding: 0 10px; text-align: center; font-variant-numeric: tabular-nums; }
+        .calc-in span { font-family: var(--font-display); color: var(--ink-2); }
+        .calc-out { margin-left: auto; text-align: right; }
+        .calc-out .big { font-family: var(--font-display); font-size: 34px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+        .calc-out .sub { font-size: 13px; color: var(--ink-3); margin-top: 4px; }
+        @media (max-width: 767px) { .calc { padding: 16px 14px 18px; } .calc-out { margin-left: 0; text-align: left; width: 100%; } .calc-out .big { font-size: 24px; } }
         /* 휴게 선택 */
         .break-ctl { display: inline-flex; align-items: center; gap: 12px; }
         .break-ctl .opts { display: inline-flex; border: 1px solid rgba(255,255,255,.28); }
@@ -415,6 +424,22 @@
                 <div><dt>퇴근</dt><dd id="statOut" class="muted">--:--</dd></div>
                 <div><dt>이번 주</dt><dd id="statWeek">0h 00m</dd></div>
             </dl>
+            <div class="calc md:col-span-3">
+                <div>
+                    <label class="eyebrow" for="calcH">오늘 근무할 시간</label>
+                    <div class="calc-in mt-2">
+                        <input type="number" id="calcH" class="apple-input" min="0" max="16" step="1" value="8" inputmode="numeric" aria-label="시간">
+                        <span>시간</span>
+                        <input type="number" id="calcM" class="apple-input" min="0" max="59" step="5" value="0" inputmode="numeric" aria-label="분">
+                        <span>분</span>
+                    </div>
+                </div>
+                <div class="calc-out" aria-live="polite">
+                    <div class="eyebrow">예상 퇴근</div>
+                    <div id="calcOut" class="big">--:--</div>
+                    <div id="calcNote" class="sub"></div>
+                </div>
+            </div>
         </section>
 
         <!-- Records -->
@@ -717,6 +742,31 @@
             }
         }
         setInterval(updateWorkTime, 1000);
+        setInterval(updateCalc, 1000);
+
+        // 퇴근 시각 계산기: 실근무 N분 → 몇 시에 퇴근? (netMinutes의 역산)
+        function updateCalc() {
+            const h = Math.max(0, Math.floor(Number(document.getElementById('calcH').value) || 0));
+            const m = Math.max(0, Math.floor(Number(document.getElementById('calcM').value) || 0));
+            const netMin = h * 60 + m;
+            const breakMin = getBreakMin(todayRecord, getTodayStr());
+            const grossMin = netMin > BREAK_AFTER_MIN ? netMin + breakMin : netMin;
+            const working = !!(todayRecord && todayRecord.clockIn);
+            const base = working ? new Date(todayRecord.clockIn).getTime() : Date.now();
+            const out = base + grossMin * 60000;
+            const outEl = document.getElementById('calcOut');
+            const noteEl = document.getElementById('calcNote');
+            if (netMin <= 0) { outEl.textContent = '--:--'; noteEl.textContent = ''; return; }
+            const outDate = new Date(out);
+            const nextDay = outDate.toDateString() !== new Date(base).toDateString();
+            outEl.textContent = (nextDay ? '다음날 ' : '') + formatHM(out);
+            const diff = netMin - WORK_GOAL_MIN;
+            const goalNote = diff === 0 ? '목표 8h와 동일' : diff < 0 ? `목표보다 ${formatDuration(-diff)} 적음` : `목표보다 ${formatDuration(diff)} 많음`;
+            const breakNote = netMin > BREAK_AFTER_MIN ? `휴게 ${breakMin}분 포함` : '휴게 없음 (4h 이하)';
+            const baseNote = working ? `출근 ${formatHM(base)} 기준` : '지금 출근한다면';
+            noteEl.textContent = `${baseNote} · ${breakNote} · ${goalNote}`;
+        }
+        ['calcH', 'calcM'].forEach(id => document.getElementById(id).addEventListener('input', updateCalc));
 
         const segmentBtns = document.querySelectorAll('.segment-btn');
         const tabHighlight = document.getElementById('tabHighlight');
