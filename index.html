@@ -958,13 +958,16 @@
                     await query.update({ clockIn: currentRecord.clockIn, clockOut: currentRecord.clockOut }).eq('id', currentRecord.id);
                 } else {
                     // Try inserting, if it fails due to PK conflict, we would upsert. We'll just insert/upsert.
-                    await query.upsert({ 
-                        user_id: currentRecord.user_id, 
-                        email: currentRecord.email, 
-                        date: currentRecord.date, 
-                        clockIn: currentRecord.clockIn, 
-                        clockOut: currentRecord.clockOut 
-                    });
+                    const row = {
+                        user_id: currentRecord.user_id,
+                        email: currentRecord.email,
+                        date: currentRecord.date,
+                        clockIn: currentRecord.clockIn,
+                        clockOut: currentRecord.clockOut
+                    };
+                    // 출근 전에 골라 둔 휴게시간도 함께 저장 (컬럼이 아직 없으면 빼고 재시도)
+                    const { error } = await query.upsert({ ...row, breakMin: getBreakMin(null, today) });
+                    if (error) await query.upsert(row);
                 }
             } else {
                 const localData = JSON.parse(localStorage.getItem(LOCAL_DATA_PREFIX + currentUser.id) || '{}');
