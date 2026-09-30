@@ -675,8 +675,10 @@
             document.getElementById('heroBlock').dataset.state = state;
             document.querySelectorAll('.break-ctl [data-break]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.break) === breakMin)));
             const deducted = grossMin - todayMin;
-            document.getElementById('workGross').textContent = state === 'idle'
-                ? `휴게 ${breakMin}분은 4시간 경과 후 차감`
+            const breakLabel = breakMin === 60 ? '1시간' : `${breakMin}분`;
+            document.getElementById('workGross').textContent =
+                state === 'idle' ? `휴게 ${breakLabel}은 4시간 경과 후 차감`
+                : grossMin <= BREAK_AFTER_MIN ? `경과 ${formatDuration(grossMin)} · 휴게 ${breakLabel}은 4시간 이후 차감`
                 : `경과 ${formatDuration(grossMin)} · 휴게 −${formatDuration(deducted)}`;
 
             const statusEl = document.getElementById('workStatus');
@@ -685,8 +687,12 @@
 
             document.getElementById('workTime').textContent = formatDuration(todayMin);
             const remain = WORK_GOAL_MIN - todayMin;
+            // 퇴근 예정 = 출근 + 8시간 + 휴게 → 휴게를 바꾸면 바로 반영됨
+            const expectedOut = state !== 'idle' ? new Date(new Date(todayRecord.clockIn).getTime() + (WORK_GOAL_MIN + breakMin) * 60000) : null;
             document.getElementById('workGoal').textContent =
-                state === 'idle' ? '목표 8h' : remain > 0 ? `남은 시간 ${formatDuration(remain)}` : `+${formatDuration(-remain)} 초과`;
+                state === 'idle' ? `목표 8h · 휴게 ${breakLabel}`
+                : state === 'done' ? (remain > 0 ? `목표까지 ${formatDuration(remain)} 부족` : `+${formatDuration(-remain)} 초과`)
+                : remain > 0 ? `퇴근 예정 ${formatHM(expectedOut)} · 남은 ${formatDuration(remain)}` : `+${formatDuration(-remain)} 초과`;
             const bar = document.getElementById('workBar');
             bar.dataset.state = state;
             bar.style.width = `${Math.min(100, (todayMin / WORK_GOAL_MIN) * 100)}%`;
